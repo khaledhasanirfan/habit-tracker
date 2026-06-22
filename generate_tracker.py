@@ -40,8 +40,11 @@ BLUE         = "1565C0"
 LIGHT_BLUE   = "E3F2FD"
 PINK         = "AD1457"
 LIGHT_PINK   = "FCE4EC"
-SOLID_GREEN  = "43A047"  # checkbox checked fill
-SOLID_RED    = "EF5350"  # checkbox unchecked fill
+# Checkbox cell colors — baked into cell DEFAULT FILL so they work in ALL apps
+CB_RED       = "FFCDD2"  # unchecked default (red, visible even without CF)
+CB_RED_FONT  = "B71C1C"  # dark red text
+CB_GREEN     = "C8E6C9"  # checked CF override (green)
+CB_GRN_FONT  = "1B5E20"  # dark green text
 
 # ── Style helpers ──────────────────────────────────────────────────────────────
 def hfill(c):   return PatternFill("solid", fgColor=c)
@@ -68,22 +71,25 @@ def style_data(ws, row, bg=WHITE, cols=None):
         cell.fill = hfill(bg); cell.border = tborder()
         cell.alignment = center(); cell.font = mfont(size=10)
 
-# ── Checkbox CF rules ──────────────────────────────────────────────────────────
-# TRUE  (=1) → solid green
-# FALSE (=0) → solid red   (all unchecked cells red by default)
+# ── Checkbox cell helpers ──────────────────────────────────────────────────────
+# Strategy: bake RED into the cell's default fill so it's visible in every app
+# (Excel, Google Sheets, LibreOffice, mobile) even without CF.
+# CF only needs to override TRUE → GREEN.
 
-def cf_checkbox(ws, rng, first_cell):
-    """Apply green(TRUE) / red(FALSE) CF to a range of boolean checkbox cells."""
-    # TRUE = checked = GREEN
+def set_cb_red(ws, row, cols):
+    """Set checkbox cells to red fill by default (unchecked base state)."""
+    for c in cols:
+        cell = ws.cell(row=row, column=c)
+        cell.fill = hfill(CB_RED)
+        cell.font = mfont(size=10, color=CB_RED_FONT)
+        cell.alignment = center()
+
+def cf_checkbox_green(ws, rng, first_cell):
+    """CF: only TRUE → GREEN  (red is the default fill, no CF rule needed for it)."""
     ws.conditional_formatting.add(rng,
         FormulaRule(formula=[f'{first_cell}=TRUE'],
-                    fill=hfill(LIGHT_GREEN),
-                    font=Font(color=GREEN, bold=True, name="Calibri")))
-    # FALSE = unchecked = RED  (past AND future — all defaults red)
-    ws.conditional_formatting.add(rng,
-        FormulaRule(formula=[f'{first_cell}=FALSE'],
-                    fill=hfill(LIGHT_RED),
-                    font=Font(color=RED, bold=True, name="Calibri")))
+                    fill=hfill(CB_GREEN),
+                    font=Font(color=CB_GRN_FONT, bold=True, name="Calibri")))
 
 # ── Date data ──────────────────────────────────────────────────────────────────
 def all_dates():
@@ -134,10 +140,11 @@ def create_salat_sheet(wb):
         ws.cell(row=row,column=9,value=f"=H{row}/5").number_format="0%"
         ws.cell(row=row,column=10,value="")
         style_data(ws,row,bg,range(1,11))
+        set_cb_red(ws, row, range(3,8))     # Fajr–Isha: red by default
         ws.row_dimensions[row].height = 22
 
-    # Checkbox CF on prayer columns C–G
-    cf_checkbox(ws, f"C4:G{last}", "C4")
+    # CF: only TRUE → GREEN (red is baked into cell fill already)
+    cf_checkbox_green(ws, f"C4:G{last}", "C4")
 
     # Completion % CF
     comp = f"I4:I{last}"
@@ -188,17 +195,16 @@ def create_gym_sheet(wb):
             for c in range(1,10):
                 ws.cell(row=row,column=c).fill=hfill(LIGHT_PURPLE)
                 ws.cell(row=row,column=c).font=mfont(color=PURPLE,size=10,italic=True)
+        else:
+            set_cb_red(ws, row, [4])        # Grind Day: D column red by default
 
     dv_int.sqref=f"H4:H{last}"
 
-    # Checkbox CF — only applies to Grind Day rows (Rest Days stay purple)
+    # CF: Grind Day + TRUE → GREEN  (red is baked into cell fill for Grind rows)
     rng = f"D4:D{last}"
     ws.conditional_formatting.add(rng,
         FormulaRule(formula=['AND(C4="Grind Day",D4=TRUE)'],
-                    fill=hfill(LIGHT_GREEN),font=Font(color=GREEN,bold=True)))
-    ws.conditional_formatting.add(rng,
-        FormulaRule(formula=['AND(C4="Grind Day",D4=FALSE)'],
-                    fill=hfill(LIGHT_RED),font=Font(color=RED,bold=True)))
+                    fill=hfill(CB_GREEN), font=Font(color=CB_GRN_FONT,bold=True)))
 
     ws.freeze_panes="A4"; ws.auto_filter.ref=f"A3:I{last}"
 
@@ -235,12 +241,12 @@ def create_supplements_sheet(wb):
         ws.cell(row=row,column=5,value=f"=AND(C{row},D{row})")   # computed boolean
         ws.cell(row=row,column=6,value="")
         style_data(ws,row,bg,range(1,7)); ws.row_dimensions[row].height=22
+        set_cb_red(ws, row, [3,4,5])        # Multivitamin, Omega, Both: red by default
 
-    # Checkboxes on C (Multivitamin) and D (Omega)
-    cf_checkbox(ws, f"C4:C{last}", "C4")
-    cf_checkbox(ws, f"D4:D{last}", "D4")
-    # Computed E column — same colors, no native checkbox DV
-    cf_checkbox(ws, f"E4:E{last}", "E4")
+    # CF: TRUE → GREEN  (red is baked into cell fill)
+    cf_checkbox_green(ws, f"C4:C{last}", "C4")
+    cf_checkbox_green(ws, f"D4:D{last}", "D4")
+    cf_checkbox_green(ws, f"E4:E{last}", "E4")
 
     ws.freeze_panes="A4"; ws.auto_filter.ref=f"A3:F{last}"
 
@@ -282,8 +288,11 @@ def create_steps_sheet(wb):
         ws.cell(row=row,column=4).number_format="#,##0"
         ws.cell(row=row,column=6).number_format="+#,##0;-#,##0;0"
 
-    # Goal Met (E) — computed boolean: TRUE=green, FALSE=red
-    cf_checkbox(ws, f"E4:E{last}", "E4")
+    # Goal Met (E): CF TRUE→green (no default red fill since cell starts empty)
+    cf_checkbox_green(ws, f"E4:E{last}", "E4")
+    ws.conditional_formatting.add(f"E4:E{last}",
+        FormulaRule(formula=['AND(E4<>"",E4=FALSE)'],
+                    fill=hfill(CB_RED), font=Font(color=CB_RED_FONT, bold=True)))
     # Empty steps + past date → soft red hint
     ws.conditional_formatting.add(f"C4:C{last}",
         FormulaRule(formula=['AND($A4<TODAY(),C4="")'],
@@ -330,13 +339,10 @@ def create_running_sheet(wb):
         ws.cell(row=row,column=6,
                 value=f'=IFERROR(IF(AND(D{row}<>"",E{row}<>""),E{row}/D{row},""),"")')
         style_data(ws,row,bg,range(1,10)); ws.row_dimensions[row].height=22
+        set_cb_red(ws, row, [3])            # Ran Today: red by default
 
-    # Ran Today — green when checked, soft orange (not red) when not (running is optional)
-    rng = f"C4:C{last}"
-    ws.conditional_formatting.add(rng,
-        FormulaRule(formula=["C4=TRUE"],fill=hfill(LIGHT_GREEN),font=Font(color=GREEN,bold=True)))
-    ws.conditional_formatting.add(rng,
-        FormulaRule(formula=["C4=FALSE"],fill=hfill(LIGHT_ORANGE),font=Font(color=ORANGE,bold=True)))
+    # Ran Today: CF TRUE → GREEN (red baked into default fill)
+    cf_checkbox_green(ws, f"C4:C{last}", "C4")
 
     ws.freeze_panes="A4"; ws.auto_filter.ref=f"A3:I{last}"
 

@@ -43,13 +43,23 @@ python generate_tracker.py
 - The **Monthly Summary** chart updates as you fill in data.
 - Works in both **Microsoft Excel** and **Google Sheets** (upload the .xlsx file to Google Drive and open with Sheets).
 
-## Google Sheets Tips
+## Google Sheets — One-Time Checkbox Setup
 
-When uploading to Google Sheets:
-- TRUE/FALSE dropdowns work natively.
-- For real checkboxes: select the prayer/supplement columns → **Insert → Checkbox** — Sheets maps TRUE/FALSE automatically.
+After uploading the `.xlsx` to Google Drive, open it **as Google Sheets** (right-click → Open with → Google Sheets).  
+Cells will show as empty colored boxes (red = unchecked, green = checked) — no text visible.
+
+**To enable tap-to-toggle checkboxes (run once):**
+
+1. In the spreadsheet click **Extensions → Apps Script**
+2. Delete all code in the editor, paste the contents of [`add_gsheets_checkboxes.gs`](add_gsheets_checkboxes.gs)
+3. Click **Run** → grant permissions → click **Run** again
+4. A dialog confirms checkboxes are added — close it
+
+After that, every red/green cell in Salat, Gym, Supplements, and Running toggles on a single tap.
+
+**Tips:**
 - Pin rows with **View → Freeze → Up to row 3** on each sheet.
-- Use **Format → Conditional formatting** to add mobile-friendly color rules.
+- The script only needs to run once — checkboxes persist in the file.
 
 ## Gym Schedule (auto-filled)
 
@@ -67,7 +77,8 @@ When uploading to Google Sheets:
 
 ```
 habit-tracker/
-├── generate_tracker.py        # Python script to regenerate the workbook
-├── Personal_Life_Tracker.xlsx # The ready-to-use Excel workbook
+├── generate_tracker.py            # Python script to regenerate the workbook
+├── Personal_Life_Tracker.xlsx     # The ready-to-use Excel workbook
+├── add_gsheets_checkboxes.gs      # Google Apps Script — run once for tap-to-toggle
 └── README.md
 ```

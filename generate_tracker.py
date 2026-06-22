@@ -83,11 +83,12 @@ def set_cb_red(ws, row, cols):
         cell.fill = hfill(CB_RED)
         cell.font = mfont(size=10, color=CB_RED_FONT)
         cell.alignment = center()
+        cell.number_format = ';;;'  # hide 0/1 value; color CF gives visual feedback
 
 def cf_checkbox_green(ws, rng, first_cell):
-    """CF: only TRUE → GREEN  (red is the default fill, no CF rule needed for it)."""
+    """CF: only 1 → GREEN  (red is the default fill, no CF rule needed for it)."""
     ws.conditional_formatting.add(rng,
-        FormulaRule(formula=[f'{first_cell}=TRUE'],
+        FormulaRule(formula=[f'{first_cell}=1'],
                     fill=hfill(CB_GREEN),
                     font=Font(color=CB_GRN_FONT, bold=True, name="Calibri")))
 
@@ -134,9 +135,9 @@ def create_salat_sheet(wb):
         bg  = WHITE if i%2==0 else GRAY_BG
         ws.cell(row=row,column=1,value=d).number_format="DD-MMM-YYYY"
         ws.cell(row=row,column=2,value=d.strftime("%A"))
-        for c in range(3,8):              # Fajr–Isha: boolean FALSE
-            ws.cell(row=row,column=c,value=False)
-        ws.cell(row=row,column=8,value=f"=COUNTIF(C{row}:G{row},TRUE)")
+        for c in range(3,8):              # Fajr–Isha: 0 = unchecked
+            ws.cell(row=row,column=c,value=0)
+        ws.cell(row=row,column=8,value=f"=COUNTIF(C{row}:G{row},1)")
         ws.cell(row=row,column=9,value=f"=H{row}/5").number_format="0%"
         ws.cell(row=row,column=10,value="")
         style_data(ws,row,bg,range(1,11))
@@ -188,7 +189,7 @@ def create_gym_sheet(wb):
         ws.cell(row=row,column=1,value=d).number_format="DD-MMM-YYYY"
         ws.cell(row=row,column=2,value=day_name)
         ws.cell(row=row,column=3,value=plan)
-        ws.cell(row=row,column=4,value=False)   # boolean checkbox
+        ws.cell(row=row,column=4,value=0)   # 0 = unchecked
         for c in [5,6,7,8,9]: ws.cell(row=row,column=c,value="")
         style_data(ws,row,bg,range(1,10)); ws.row_dimensions[row].height=22
         if plan=="Rest Day":
@@ -203,7 +204,7 @@ def create_gym_sheet(wb):
     # CF: Grind Day + TRUE → GREEN  (red is baked into cell fill for Grind rows)
     rng = f"D4:D{last}"
     ws.conditional_formatting.add(rng,
-        FormulaRule(formula=['AND(C4="Grind Day",D4=TRUE)'],
+        FormulaRule(formula=['AND(C4="Grind Day",D4=1)'],
                     fill=hfill(CB_GREEN), font=Font(color=CB_GRN_FONT,bold=True)))
 
     ws.freeze_panes="A4"; ws.auto_filter.ref=f"A3:I{last}"
@@ -236,9 +237,9 @@ def create_supplements_sheet(wb):
         row=i+4; bg=WHITE if i%2==0 else GRAY_BG
         ws.cell(row=row,column=1,value=d).number_format="DD-MMM-YYYY"
         ws.cell(row=row,column=2,value=d.strftime("%A"))
-        ws.cell(row=row,column=3,value=False)   # Multivitamin checkbox
-        ws.cell(row=row,column=4,value=False)   # Omega checkbox
-        ws.cell(row=row,column=5,value=f"=AND(C{row},D{row})")   # computed boolean
+        ws.cell(row=row,column=3,value=0)   # Multivitamin: 0=unchecked
+        ws.cell(row=row,column=4,value=0)   # Omega: 0=unchecked
+        ws.cell(row=row,column=5,value=f"=C{row}*D{row}")   # Both=1 only if both checked
         ws.cell(row=row,column=6,value="")
         style_data(ws,row,bg,range(1,7)); ws.row_dimensions[row].height=22
         set_cb_red(ws, row, [3,4,5])        # Multivitamin, Omega, Both: red by default
@@ -281,17 +282,18 @@ def create_steps_sheet(wb):
         ws.cell(row=row,column=3,value="")
         c_goal = ws.cell(row=row,column=4,value="='Goals & Settings'!B5")
         c_goal.number_format="#,##0"
-        ws.cell(row=row,column=5,value=f'=IF(C{row}="","",C{row}>=D{row})')
+        ws.cell(row=row,column=5,value=f'=IF(C{row}="","",IF(C{row}>=D{row},1,0))')
         ws.cell(row=row,column=6,value=f'=IF(C{row}="","",C{row}-D{row})').number_format="+#,##0;-#,##0;0"
         ws.cell(row=row,column=7,value="")
         style_data(ws,row,bg,range(1,8)); ws.row_dimensions[row].height=22
         ws.cell(row=row,column=4).number_format="#,##0"
+        ws.cell(row=row,column=5).number_format=';;;'   # hide 0/1; CF supplies color
         ws.cell(row=row,column=6).number_format="+#,##0;-#,##0;0"
 
-    # Goal Met (E): CF TRUE→green (no default red fill since cell starts empty)
+    # Goal Met (E): CF 1→green, 0→red (cell starts empty for unfilled days)
     cf_checkbox_green(ws, f"E4:E{last}", "E4")
     ws.conditional_formatting.add(f"E4:E{last}",
-        FormulaRule(formula=['AND(E4<>"",E4=FALSE)'],
+        FormulaRule(formula=['AND(E4<>"",E4=0)'],
                     fill=hfill(CB_RED), font=Font(color=CB_RED_FONT, bold=True)))
     # Empty steps + past date → soft red hint
     ws.conditional_formatting.add(f"C4:C{last}",
@@ -334,7 +336,7 @@ def create_running_sheet(wb):
         row=i+4; bg=WHITE if i%2==0 else GRAY_BG
         ws.cell(row=row,column=1,value=d).number_format="DD-MMM-YYYY"
         ws.cell(row=row,column=2,value=d.strftime("%A"))
-        ws.cell(row=row,column=3,value=False)   # Ran Today checkbox
+        ws.cell(row=row,column=3,value=0)   # Ran Today: 0=unchecked
         for c in [4,5,7,8,9]: ws.cell(row=row,column=c,value="")
         ws.cell(row=row,column=6,
                 value=f'=IFERROR(IF(AND(D{row}<>"",E{row}<>""),E{row}/D{row},""),"")')
@@ -501,17 +503,17 @@ def create_monthly_summary_sheet(wb):
         # Gym %: count TRUE in D where C=Grind Day
         grind=grind_per_month[i]
         ws.cell(row=row,column=3,
-                value=f"=IFERROR(COUNTIFS('Gym Routine'!C{fr}:C{lr},\"Grind Day\",'Gym Routine'!D{fr}:D{lr},TRUE)/{grind},0)"
+                value=f"=IFERROR(COUNTIFS('Gym Routine'!C{fr}:C{lr},\"Grind Day\",'Gym Routine'!D{fr}:D{lr},1)/{grind},0)"
                 ).number_format="0.0%"
-        # Supplements %: count TRUE in E (Both Completed)
+        # Supplements %: count 1 in E (Both Completed)
         ws.cell(row=row,column=4,
-                value=f"=IFERROR(COUNTIF('Supplements'!E{fr}:E{lr},TRUE)/{dm},0)").number_format="0.0%"
-        # Steps Goal %: count TRUE in E (Goal Met)
+                value=f"=IFERROR(COUNTIF('Supplements'!E{fr}:E{lr},1)/{dm},0)").number_format="0.0%"
+        # Steps Goal %: count 1 in E (Goal Met)
         ws.cell(row=row,column=5,
-                value=f"=IFERROR(COUNTIF('Steps Tracker'!E{fr}:E{lr},TRUE)/{dm},0)").number_format="0.0%"
-        # Running KM: sumif C=TRUE
+                value=f"=IFERROR(COUNTIF('Steps Tracker'!E{fr}:E{lr},1)/{dm},0)").number_format="0.0%"
+        # Running KM: sumif C=1
         ws.cell(row=row,column=6,
-                value=f"=IFERROR(SUMIF('Running Tracker'!C{fr}:C{lr},TRUE,'Running Tracker'!D{fr}:D{lr}),0)").number_format="0.0"
+                value=f"=IFERROR(SUMIF('Running Tracker'!C{fr}:C{lr},1,'Running Tracker'!D{fr}:D{lr}),0)").number_format="0.0"
         # Financials
         ws.cell(row=row,column=7,value=f"=IFERROR(SUM('Expense & Savings'!E{fr}:E{lr}),0)").number_format="#,##0.00"
         ws.cell(row=row,column=8,value=f"=IFERROR(SUM('Expense & Savings'!F{fr}:F{lr}),0)").number_format="#,##0.00"
@@ -594,11 +596,11 @@ def create_dashboard(wb):
         ("B","C","🕌 SALAT",     TEAL,  LIGHT_TEAL,
          "=IFERROR(COUNTIF('Salat Tracker'!I$4:I$368,1)/COUNTA('Salat Tracker'!A$4:A$368),0)","0.0%","Prayers 100%"),
         ("D","E","💪 GYM",        PURPLE,LIGHT_PURPLE,
-         "=IFERROR(COUNTIFS('Gym Routine'!C$4:C$368,\"Grind Day\",'Gym Routine'!D$4:D$368,TRUE)/COUNTIF('Gym Routine'!C$4:C$368,\"Grind Day\"),0)","0.0%","Workouts Done"),
+         "=IFERROR(COUNTIFS('Gym Routine'!C$4:C$368,\"Grind Day\",'Gym Routine'!D$4:D$368,1)/COUNTIF('Gym Routine'!C$4:C$368,\"Grind Day\"),0)","0.0%","Workouts Done"),
         ("F","G","💊 SUPPLEMENTS",ORANGE,LIGHT_ORANGE,
-         "=IFERROR(COUNTIF('Supplements'!E$4:E$368,TRUE)/COUNTA('Supplements'!A$4:A$368),0)","0.0%","Both Taken"),
+         "=IFERROR(COUNTIF('Supplements'!E$4:E$368,1)/COUNTA('Supplements'!A$4:A$368),0)","0.0%","Both Taken"),
         ("H","H","👟 STEPS",      BLUE,  LIGHT_BLUE,
-         "=IFERROR(COUNTIF('Steps Tracker'!E$4:E$368,TRUE)/COUNTA('Steps Tracker'!A$4:A$368),0)","0.0%","Goal Met Days"),
+         "=IFERROR(COUNTIF('Steps Tracker'!E$4:E$368,1)/COUNTA('Steps Tracker'!A$4:A$368),0)","0.0%","Goal Met Days"),
     ]
     for c1,c2,lbl,hc,vc,formula,fmt,sub in kpi1:
         mc(f"{c1}7:{c2}7",lbl,hc,WHITE,10,bold=True)

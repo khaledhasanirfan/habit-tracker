@@ -740,6 +740,81 @@ def inject_checkboxes(xlsx_path: str, sheet_sqref: dict):
         f.write(buf.getvalue())
 
 # ══════════════════════════════════════════════════════════════════════════════
+# SHEET 10 — TASK TRACKER
+# ══════════════════════════════════════════════════════════════════════════════
+TASK_ROWS = 50   # number of task rows to pre-create
+
+def create_task_sheet(wb):
+    ws = wb.create_sheet("Task Tracker")
+    headers    = ["Task Description", "Assigned To", "Check", "Status"]
+    col_widths = [46, 24, 12, 18]
+
+    # ── Title ────────────────────────────────────────────────────────────────
+    ws.merge_cells("A1:D1")
+    ws["A1"].value = "☑  TASK TRACKER"
+    ws["A1"].fill  = hfill(DARK_NAVY)
+    ws["A1"].font  = mfont(bold=True, size=14, color=WHITE)
+    ws["A1"].alignment = center()
+    ws.row_dimensions[1].height = 38
+
+    # ── Subtitle ─────────────────────────────────────────────────────────────
+    ws.merge_cells("A2:D2")
+    ws["A2"].value = "Tap Check ✓ to mark complete  •  Status updates automatically"
+    ws["A2"].fill  = hfill("ECEFF1")   # soft blue-grey — 2nd colour only
+    ws["A2"].font  = mfont(italic=True, color=DARK_GRAY, size=10)
+    ws["A2"].alignment = center()
+    ws.row_dimensions[2].height = 22
+
+    # ── Column headers ────────────────────────────────────────────────────────
+    ws.row_dimensions[3].height = 30
+    for c, (h, w) in enumerate(zip(headers, col_widths), 1):
+        ws.cell(row=3, column=c, value=h)
+        set_w(ws, c, w)
+    style_header(ws, 3, DARK_NAVY, WHITE, range(1, 5))
+
+    # ── Data rows ─────────────────────────────────────────────────────────────
+    last = 3 + TASK_ROWS
+    for i in range(TASK_ROWS):
+        row = i + 4
+        bg  = WHITE if i % 2 == 0 else GRAY_BG
+        ws.cell(row=row, column=1, value="")    # Task Description
+        ws.cell(row=row, column=2, value="")    # Assigned To
+        ws.cell(row=row, column=3, value=0)     # Check: 0 = unchecked
+        ws.cell(row=row, column=4,
+                value=f'=IF(A{row}="","",IF(C{row}=1,"Complete","In Progress"))')
+        style_data(ws, row, bg, range(1, 5))
+        # Check cell: neutral default — CF turns it red/green based on content
+        cell = ws.cell(row=row, column=3)
+        cell.number_format = ';;;'   # hide 0/1 value; color comes from CF
+        cell.alignment = center()
+        ws.row_dimensions[row].height = 26
+
+    # ── Conditional formatting ────────────────────────────────────────────────
+    # Check column: red only when a task exists and is unchecked
+    ws.conditional_formatting.add(f"C4:C{last}",
+        FormulaRule(formula=['AND(A4<>"",C4=0)'],
+                    fill=hfill(CB_RED),
+                    font=Font(color=CB_RED_FONT, name="Calibri")))
+    # Check column: green when checked
+    ws.conditional_formatting.add(f"C4:C{last}",
+        FormulaRule(formula=['C4=1'],
+                    fill=hfill(CB_GREEN),
+                    font=Font(color=CB_GRN_FONT, bold=True, name="Calibri")))
+
+    # Status column: green for Complete, soft orange for In Progress
+    ws.conditional_formatting.add(f"D4:D{last}",
+        FormulaRule(formula=['D4="Complete"'],
+                    fill=hfill(CB_GREEN),
+                    font=Font(color=CB_GRN_FONT, bold=True, name="Calibri")))
+    ws.conditional_formatting.add(f"D4:D{last}",
+        FormulaRule(formula=['D4="In Progress"'],
+                    fill=hfill("FFF3E0"),
+                    font=Font(color="E65100", bold=True, name="Calibri")))
+
+    ws.freeze_panes = "A4"
+    ws.auto_filter.ref = f"A3:D{last}"
+
+# ══════════════════════════════════════════════════════════════════════════════
 # MAIN
 # ══════════════════════════════════════════════════════════════════════════════
 def main():
@@ -753,13 +828,14 @@ def main():
     create_expense_sheet(wb)
     create_goals_sheet(wb)
     create_monthly_summary_sheet(wb)
+    create_task_sheet(wb)
 
     tab_colors = {
         "Dashboard":        DARK_NAVY, "Salat Tracker":    TEAL,
         "Gym Routine":      PURPLE,    "Supplements":      ORANGE,
         "Steps Tracker":    BLUE,      "Running Tracker":  GREEN,
         "Expense & Savings":PINK,      "Goals & Settings": DARK_NAVY,
-        "Monthly Summary":  YELLOW,
+        "Monthly Summary":  YELLOW,    "Task Tracker":     DARK_GRAY,
     }
     for name in wb.sheetnames:
         if name in tab_colors:
@@ -772,10 +848,11 @@ def main():
     # Inject native Excel 365 checkboxes via ZIP post-processing
     last_row = 3 + len(DATES)   # = 368
     inject_checkboxes(path, {
-        "Salat Tracker":   f"C4:G{last_row}",    # 5 prayer columns
-        "Gym Routine":     f"D4:D{last_row}",    # Workout Done
-        "Supplements":     f"C4:D{last_row}",    # Multivitamin + Omega
-        "Running Tracker": f"C4:C{last_row}",    # Ran Today
+        "Salat Tracker":   f"C4:G{last_row}",         # 5 prayer columns
+        "Gym Routine":     f"D4:D{last_row}",         # Workout Done
+        "Supplements":     f"C4:D{last_row}",         # Multivitamin + Omega
+        "Running Tracker": f"C4:C{last_row}",         # Ran Today
+        "Task Tracker":    f"C4:C{3 + TASK_ROWS}",   # Check column
     })
     print("✅  Injected Excel 365 native checkboxes")
     print(f"   Sheets  : {wb.sheetnames}")

@@ -21,6 +21,7 @@ function addCheckboxes() {
     "Gym Routine":     "D4:D368",   // Workout Done
     "Supplements":     "C4:D368",   // Multivitamin + Omega
     "Running Tracker": "C4:C368",   // Ran Today
+    "Task Tracker":    "C4:C53",    // Check column (50 tasks)
   };
 
   var count = 0;
